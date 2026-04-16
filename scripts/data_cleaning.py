@@ -1,6 +1,6 @@
 import pandas as pd
 import os
-import boto3
+import bopythto3
 from dotenv import load_dotenv
 from botocore.exceptions import NoCredentialsError
 
