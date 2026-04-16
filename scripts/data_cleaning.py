@@ -1,9 +1,20 @@
 import pandas as pd
 import os
+import boto3
+from dotenv import load_dotenv
+from botocore.exceptions import NoCredentialsError
+
+# 1. Incarcam parolele din fisierul ascuns .env
+load_dotenv()
+
+AWS_ACCESS_KEY = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_REGION = os.getenv('AWS_REGION')
+BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
 
 print("Incepem procesarea datelor ERP...")
 
-# 1. Generam date 'murdare' simulate (exact cum ar iesi dintr-un sistem vechi)
+# 2. Generam si curatam datele (Logica de Business ramane la fel)
 dirty_data = {
     'Client_ID': [101, 102, 103, 104, 105],
     'Nume_Companie': ['  auto romania srl ', 'TECH SOLUTIONS', None, 'qbs ReTail  ', 'fengmei automotive'],
@@ -11,35 +22,39 @@ dirty_data = {
     'Status_Plata': ['Platit', 'Intarziat', 'Platit', None, 'Intarziat']
 }
 
-# Transformam datele intr-un tabel (DataFrame)
 df = pd.DataFrame(dirty_data)
-print("\n--- Date Initiale (Murdare) ---")
-print(df)
-
-# 2. PROCESUL DE CURATARE (Data Cleaning)
-print("\nCuratam datele...")
-
-# A. Curatam Numele Companiei: eliminam spatiile inutile si punem litera mare la inceput
-# Folosim fillna('Necunoscut') in caz ca lipseste numele
 df['Nume_Companie'] = df['Nume_Companie'].fillna('Necunoscut').str.strip().str.title()
-
-# B. Standardizam Tara: eliminam spatiile si facem totul majuscule (RO)
-df['Tara'] = df['Tara'].str.strip().str.upper()
-# Uniformizam: orice e 'ROMANIA' devine 'RO' pentru consistenta
-df['Tara'] = df['Tara'].replace('ROMANIA', 'RO')
-
-# C. Tratam valorile lipsa la Status Plata
+df['Tara'] = df['Tara'].str.strip().str.upper().replace('ROMANIA', 'RO')
 df['Status_Plata'] = df['Status_Plata'].fillna('Necunoscut')
 
-print("\n--- Date Finale (Curate) ---")
-print(df)
+# 3. Salvam fisierul local (temporar)
+os.makedirs('data', exist_ok=True)
+local_file_path = 'data/master_data_clienti.csv'
+df.to_csv(local_file_path, index=False)
+print(f"Date curatate si salvate local in: {local_file_path}")
 
-# 3. Salvarea datelor in dosarul 'data'
-# Ne asiguram ca dosarul exista (pentru siguranta)
-os.makedirs('../data', exist_ok=True)
+# 4. Trimiterea datelor in AWS S3 (Data Lake)
+print(f"Initiem conexiunea cu AWS S3 (Regiunea: {AWS_REGION})...")
 
-# Salvam fisierul CSV
-output_path = 'data/master_data_clienti.csv'
-df.to_csv(output_path, index=False)
+try:
+    # Cream "clientul" care vorbeste cu AWS
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=AWS_ACCESS_KEY,
+        aws_secret_access_key=AWS_SECRET_KEY,
+        region_name=AWS_REGION
+    )
+    
+    # Numele fisierului asa cum va aparea in Cloud
+    s3_file_name = 'raw_data/master_data_clienti.csv'
+    
+    # Comanda de upload
+    s3_client.upload_file(local_file_path, BUCKET_NAME, s3_file_name)
+    print(f"✅ SUCCES! Fisierul a fost incarcat in S3 Bucket-ul '{BUCKET_NAME}' in folderul 'raw_data/'.")
 
-print(f"\nSucces! Datele Master Data au fost salvate in: {output_path}")
+except FileNotFoundError:
+    print("Eroare: Fisierul local nu a fost gasit.")
+except NoCredentialsError:
+    print("Eroare: Credentialele AWS nu sunt corecte sau lipsesc din fisierul .env.")
+except Exception as e:
+    print(f"A aparut o eroare neasteptata: {e}")
