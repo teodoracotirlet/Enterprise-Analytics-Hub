@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: stg_global_transactions
+    description: "Tabel staging pentru fuziunea ERP-urilor NovaTech si AeroForge."
+    columns:
+      - name: TRANSACTION_ID
+        description: "Cheia primara unica a tranzactiei."
+        tests:
+          - unique
+          - not_null
+          
+      - name: SOURCE_SYSTEM
+        description: "Sistemul ERP de origine."
+        tests:
+          - accepted_values:
+              arguments: # <- Acesta este cuvântul magic cerut de dbt 2.0!
+                values: ['NovaTech_US', 'AeroForge_EU']
+              
+      - name: AMOUNT_EUR
+        description: "Valoarea financiara standardizata."
+        tests:
+          - not_null

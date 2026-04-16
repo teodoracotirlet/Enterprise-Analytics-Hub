@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: erp_raw_data
+    database: ENTERPRISE_HUB
+    schema: RAW_DATA
+    tables:
+      - name: RAW_TRANSACTIONS
